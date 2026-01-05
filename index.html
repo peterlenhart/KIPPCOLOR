@@ -1,73 +1,52 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>8×N Raster</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KIPP Raster 8×…</title>
   <style>
     :root{
       --cols: 8;
-
-      /* Grid-Linien (leicht sichtbar) */
-      --grid-alpha: 0.18;
-
-      /* Innenabstand zum Bildschirmrand (safe area) */
-      --pad: 12px;
-
-      /* Cell-Größe wird per JS gesetzt (px) */
-      --cell: 80px;
-
-      /* Grid an/aus */
-      --grid-on: 1; /* 1 = sichtbar, 0 = aus */
+      --cell: min(12.5vw, 84px);     /* passt sich an Handybreiten an */
+      --grid-alpha: 0.18;            /* Stärke der Rasterlinien */
+      --text: rgba(245,245,245,0.90);/* gebrochenes Weiß ~90% */
+      --bg: #000;
     }
 
-    html, body{
-      height: 100%;
-      margin: 0;
-      background: #000;
-      overflow: hidden;
+    html,body{height:100%;margin:0}
+    body{
+      background: var(--bg);
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color: #fff;
+      overflow:hidden;
     }
 
-    /* Stage nutzt dvh für iOS/Android, fallback via min-height */
+    /* Bühne */
     .stage{
       width: 100vw;
-      height: 100dvh;
-      min-height: 100vh;
-      background: #000;
+      height: 100vh;
       position: relative;
-      overflow: hidden;
-
-      /* Safe area (iPhone Notch) */
-      padding:
-        calc(var(--pad) + env(safe-area-inset-top))
-        calc(var(--pad) + env(safe-area-inset-right))
-        calc(var(--pad) + env(safe-area-inset-bottom))
-        calc(var(--pad) + env(safe-area-inset-left));
-      box-sizing: border-box;
+      overflow:hidden;
     }
 
-    /* Layout: zentriert, hat feste Breite = cols*cell */
+    /* 8-Spalten-Layout in der Mitte */
     .layout{
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
+      position:absolute;
+      left:50%;
+      top:0;
+      transform: translateX(-50%);
       width: calc(var(--cols) * var(--cell));
-      height: var(--gridH);
-      background: transparent;
-      box-sizing: border-box;
+      height: 100vh; /* Höhe ergibt sich aus Gerät */
     }
 
-    /* Grid-Layer */
+    /* Raster (ein/aus) */
     .grid{
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: var(--grid-on);
-      transition: opacity 0.15s ease;
-
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity: 1;
       background-image:
         repeating-linear-gradient(
           to right,
@@ -84,124 +63,76 @@
           rgba(255,255,255,0) var(--cell)
         );
     }
+    .grid.off{ opacity: 0; }
 
-    /* Button oben */
-    .ui{
-      position: absolute;
-      left: 50%;
-      top: calc(10px + env(safe-area-inset-top));
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-      z-index: 10;
-      pointer-events: auto;
+    /* Textblöcke exakt auf Grid-Zeilen */
+    .rowText{
+      position:absolute;
+      left:0;
+      width: 100%;
+      height: var(--cell);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: var(--text);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      user-select:none;
+      pointer-events:none;
     }
 
-    .btn{
-      height: 44px;
-      padding: 0 16px;
-      border-radius: 14px;
-      border: 2px solid rgba(255,255,255,0.25);
+    /* Zeile N => top = (N-1)*cell */
+    .r2{ top: calc((2 - 1) * var(--cell)); }
+    .r4{ top: calc((4 - 1) * var(--cell)); }
+
+    /* optional: leichte Größenanpassung */
+    .rowText span{
+      font-size: clamp(18px, 4.8vmin, 34px);
+      line-height: 1;
+      text-align:center;
+      padding: 0 12px;
+    }
+
+    /* kleiner Toggle-Button (oben rechts) */
+    .toggle{
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 10;
       background: rgba(255,255,255,0.10);
-      color: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.22);
+      color: rgba(255,255,255,0.90);
+      border-radius: 12px;
+      padding: 10px 12px;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.02em;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
-    .btn:active{ transform: translateY(1px); }
-
-    /* Kleine Info unten */
-    .info{
-      position: absolute;
-      left: 50%;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-      font-size: 12px;
-      opacity: 0.7;
-      z-index: 10;
-      pointer-events: none;
-      text-align: center;
-      white-space: nowrap;
-    }
+    .toggle:active{ transform: scale(0.98); }
   </style>
 </head>
 <body>
-  <div class="stage" id="stage">
-    <div class="ui">
-      <button class="btn" id="toggleGrid" type="button">GRID AUS</button>
-    </div>
+  <button class="toggle" id="btnGrid" type="button">Grid: ON</button>
 
-    <div class="layout" id="layout" aria-label="8-Spalten Raster">
+  <div class="stage">
+    <div class="layout">
+      <div class="rowText r2"><span>KIPP COLOR</span></div>
+      <div class="rowText r4"><span>KOMBIKARTEN</span></div>
+
       <div class="grid" id="grid" aria-hidden="true"></div>
     </div>
-
-    <div class="info" id="info"></div>
   </div>
 
   <script>
-    const root = document.documentElement;
-    const stage = document.getElementById("stage");
-    const info  = document.getElementById("info");
-    const btn   = document.getElementById("toggleGrid");
+    const grid = document.getElementById('grid');
+    const btn  = document.getElementById('btnGrid');
 
-    function setVar(name, value){
-      root.style.setProperty(name, value);
-    }
-
-    // Ziel: 8 Spalten, maximale Breite nutzen (mit etwas Rand),
-    // Cell-Größe so wählen, dass es auf möglichst allen Phones gut passt.
-    function rebuild(){
-      const cols = 8;
-
-      // Nutzbare Breite/Höhe innerhalb stage (inkl. safe-area padding)
-      const rect = stage.getBoundingClientRect();
-
-      // Reserve: oben für Button, unten für Info (damit nix drüber liegt)
-      const reserveTop = 64;
-      const reserveBottom = 42;
-
-      const usableW = rect.width;
-      const usableH = Math.max(0, rect.height - reserveTop - reserveBottom);
-
-      // Cell = Breite / 8, aber begrenzen, damit es nicht riesig oder zu klein wird
-      // (für sehr kleine Phones und sehr große Phones)
-      let cell = Math.floor(usableW / cols);
-
-      // harte Grenzen (kannst du später ändern)
-      cell = Math.max(44, Math.min(cell, 140));
-
-      // Grid-Höhe so, dass ganze Zellen reinpassen
-      const rows = Math.max(1, Math.floor(usableH / cell));
-      const gridH = rows * cell;
-
-      setVar("--cell", cell + "px");
-      setVar("--gridH", gridH + "px");
-
-      // Debug-Info
-      info.textContent = `cell=${cell}px • cols=8 • rows=${rows} • gridH=${gridH}px`;
-    }
-
-    // Grid toggle
-    function isGridOn(){
-      return (getComputedStyle(root).getPropertyValue("--grid-on").trim() || "1") !== "0";
-    }
-
-    btn.addEventListener("click", () => {
-      const on = isGridOn();
-      setVar("--grid-on", on ? "0" : "1");
-      btn.textContent = on ? "GRID AN" : "GRID AUS";
+    btn.addEventListener('click', () => {
+      const off = grid.classList.toggle('off');
+      btn.textContent = off ? 'Grid: OFF' : 'Grid: ON';
     });
-
-    // iOS Addressbar / Rotation: rebuild öfter
-    window.addEventListener("resize", rebuild);
-    window.addEventListener("orientationchange", rebuild);
-    window.addEventListener("load", rebuild);
-
-    // extra: bei iOS kann 100dvh erst nach kurzem Moment stimmen
-    setTimeout(rebuild, 50);
-    setTimeout(rebuild, 250);
   </script>
 </body>
 </html>
