@@ -1,107 +1,244 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KIPP 2×2 Block-Muster</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>8×N Raster – passt immer</title>
+  <style>
+    :root{
+      --cols: 8;
+      --cell: 84px;         /* wird per JS gesetzt */
+      --rows: 14;           /* nur Info, wird per JS gesetzt */
+      --grid-alpha: 0.18;
+      --bg: #000;
 
-<style>
-  :root{
-    --cell: 84px;
-
-    --orange: rgb(249,150,30);
-    --blue:   rgb(0,107,179);
-    --green:  rgb(0,166,82);
-    --violet: rgb(164,27,133);
-  }
-
-  body{
-    margin:0;
-    background:#000;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    padding-top:20px;
-  }
-
-  .grid{
-    display:grid;
-    grid-template-columns: repeat(8, var(--cell));
-    grid-auto-rows: var(--cell);
-  }
-
-  .cell{
-    box-sizing:border-box;
-    border:1px solid rgba(255,255,255,0.15);
-    background: transparent;
-  }
-</style>
-</head>
-
-<body>
-  <div class="grid" id="grid"></div>
-
-<script>
-  const grid = document.getElementById("grid");
-
-  const COLS = 8;
-  const ROWS = 20; // genug Höhe zum Test
-
-  // Grid bauen
-  for(let i=0;i<COLS*ROWS;i++){
-    const d = document.createElement("div");
-    d.className = "cell";
-    grid.appendChild(d);
-  }
-
-  // Hilfsfunktionen: (row, col) sind 1-basiert: row=6, col=2 (B)
-  function idx(row, col){
-    return (row-1)*COLS + (col-1);
-  }
-
-  function setCellColor(row, col, cssVar){
-    const i = idx(row,col);
-    const el = grid.children[i];
-    if(!el) return;
-    el.style.background = `var(${cssVar})`;
-  }
-
-  // 2×2 Block färben: top-left Ecke (r,c)
-  function paint2x2Block(r, c, cssVar){
-    setCellColor(r,   c,   cssVar);
-    setCellColor(r,   c+1, cssVar);
-    setCellColor(r+1, c,   cssVar);
-    setCellColor(r+1, c+1, cssVar);
-  }
-
-  // Start: 6B = row 6, col B=2
-  const startRow = 6;
-  const startCol = 2;
-
-  // Symmetrisches 4×3 Blockmuster (jede Farbe 4×)
-  // A=orange, B=blue, C=green, D=violet
-  const pattern = [
-    ["A","B","C"],
-    ["D","C","B"],
-    ["B","C","D"],
-    ["C","B","A"],
-  ];
-
-  const map = {
-    "A":"--orange",
-    "B":"--blue",
-    "C":"--green",
-    "D":"--violet",
-  };
-
-  // Pattern setzen: jeder Block ist 2×2 Zellen
-  for(let br=0;br<4;br++){
-    for(let bc=0;bc<3;bc++){
-      const topLeftRow = startRow + br*2;
-      const topLeftCol = startCol + bc*2;
-      paint2x2Block(topLeftRow, topLeftCol, map[pattern[br][bc]]);
+      --violett: rgb(164, 27, 133);
+      --blau:    rgb(0, 107, 179);
+      --gruen:   rgb(0, 166, 82);
+      --orange:  rgb(249, 150, 30);
     }
-  }
-</script>
+
+    html,body{ height:100%; margin:0; background:var(--bg); overflow:hidden; }
+    body{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    /* Bühne füllt den Screen – KEIN scale() irgendwo */
+    .stage{
+      position:fixed; inset:0;
+      display:flex; align-items:flex-start; justify-content:center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      box-sizing:border-box;
+      background: var(--bg);
+    }
+
+    /* Rasterfläche */
+    .gridWrap{
+      position:relative;
+      width: calc(var(--cols) * var(--cell));
+      height: calc(var(--rows) * var(--cell));
+      background: transparent;
+    }
+
+    /* Grid-Linien (toggle) */
+    .gridLines{
+      position:absolute; inset:0; pointer-events:none;
+      background-image:
+        repeating-linear-gradient(
+          to right,
+          rgba(255,255,255,var(--grid-alpha)) 0px,
+          rgba(255,255,255,var(--grid-alpha)) 1px,
+          rgba(255,255,255,0) 1px,
+          rgba(255,255,255,0) var(--cell)
+        ),
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,var(--grid-alpha)) 0px,
+          rgba(255,255,255,var(--grid-alpha)) 1px,
+          rgba(255,255,255,0) 1px,
+          rgba(255,255,255,0) var(--cell)
+        );
+      opacity: 1;
+    }
+    .gridHidden .gridLines{ opacity:0; }
+
+    /* Inhalte layer */
+    .content{ position:absolute; inset:0; }
+
+    /* Text-Label (in eine Zelle zentriert) */
+    .label{
+      position:absolute;
+      display:flex; align-items:center; justify-content:center;
+      color: rgba(255,255,255,0.90);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      user-select:none;
+      pointer-events:none;
+      width: calc(var(--cell) * 8);
+      height: var(--cell);
+      left: 0;
+    }
+    .label.small{
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform:none;
+      opacity: 0.9;
+    }
+
+    /* Toggle Button */
+    .ui{
+      position:fixed;
+      top: calc(env(safe-area-inset-top) + 12px);
+      left: calc(env(safe-area-inset-left) + 12px);
+      display:flex; gap:10px;
+      z-index:10;
+    }
+    .btn{
+      appearance:none; border:2px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.10);
+      color: rgba(255,255,255,0.92);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor:pointer;
+    }
+    .btn:active{ transform: scale(0.98); }
+
+    /* Beispiel: 2×2 Block = 2 Zellen breit/hoch */
+    .block2x2{
+      position:absolute;
+      width: calc(var(--cell) * 2);
+      height: calc(var(--cell) * 2);
+    }
+  </style>
+</head>
+<body>
+  <div class="ui">
+    <button class="btn" id="toggleGrid">GRID AUS</button>
+  </div>
+
+  <div class="stage">
+    <div class="gridWrap" id="gridWrap">
+      <div class="gridLines"></div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const gridWrap = document.getElementById('gridWrap');
+    const content = document.getElementById('content');
+    const toggleGridBtn = document.getElementById('toggleGrid');
+
+    // EINZIGE Wahrheit: cell passt in Breite UND Höhe
+    const COLS = 8;
+
+    // Wie viele Zeilen sollen "sicher" sichtbar sein? (du kannst das später fixieren)
+    const TARGET_ROWS_VISIBLE = 14;
+
+    // Optional clamp, damit es nicht zu klein/zu groß wird
+    const MIN_CELL = 44;   // iPhone SE etc.
+    const MAX_CELL = 96;   // große Phones/Tablet
+
+    function fitGrid(){
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      const cellW = vw / COLS;
+      const cellH = vh / TARGET_ROWS_VISIBLE;
+
+      let cell = Math.floor(Math.min(cellW, cellH));
+      cell = Math.max(MIN_CELL, Math.min(MAX_CELL, cell));
+
+      const rows = Math.floor(vh / cell); // echte Zeilen, die in der Höhe reinpassen
+
+      root.style.setProperty('--cell', cell + 'px');
+      root.style.setProperty('--rows', rows);
+
+      // Größe der Rasterfläche exakt setzen (damit nichts "rausrutscht")
+      gridWrap.style.width  = (COLS * cell) + 'px';
+      gridWrap.style.height = (rows * cell) + 'px';
+
+      // Demo-Inhalte neu platzieren (damit du direkt siehst, es passt)
+      buildDemo(cell, rows);
+    }
+
+    // Koordinaten-Helfer:
+    // row: 1..rows, col: 1..8 (A=1..H=8)
+    function cellTopLeft(cell, row, col){
+      return {
+        x: (col - 1) * cell,
+        y: (row - 1) * cell
+      };
+    }
+
+    // "halbe B" / "halbe Zeile": colOffset / rowOffset in 0.5 Schritten
+    // Beispiel: Zeile 5.5, Spalte B.5 => row=5, rowOff=0.5, col=2, colOff=0.5
+    function posWithOffset(cell, row, col, rowOff=0, colOff=0){
+      return {
+        x: (col - 1 + colOff) * cell,
+        y: (row - 1 + rowOff) * cell
+      };
+    }
+
+    function clearContent(){ content.innerHTML = ''; }
+
+    function addLabelRow(row, text, opacity=0.90){
+      const d = document.createElement('div');
+      d.className = 'label';
+      d.style.top = `calc(var(--cell) * ${row - 1})`;
+      d.style.color = `rgba(255,255,255,${opacity})`;
+      d.textContent = text;
+      content.appendChild(d);
+    }
+
+    function add2x2Block(row, col, colorVar){
+      const d = document.createElement('div');
+      d.className = 'block2x2';
+      const cell = parseFloat(getComputedStyle(root).getPropertyValue('--cell')) || 84;
+      const p = cellTopLeft(cell, row, col);
+      d.style.left = p.x + 'px';
+      d.style.top  = p.y + 'px';
+      d.style.background = `var(${colorVar})`;
+      content.appendChild(d);
+    }
+
+    // Demo nach deinem letzten Stand:
+    // Zeile 2: KIP COLOR zentriert
+    // Zeile 4: Kombikarten (gebrochenes Weiß ~ 90% opacity)
+    // plus ein paar 2×2 Blöcke als Proof-of-fit
+    function buildDemo(cell, rows){
+      clearContent();
+
+      if(rows >= 4){
+        addLabelRow(2, 'KIP COLOR', 0.90);
+        addLabelRow(4, 'Kombikarten', 0.90);
+      }
+
+      // Nur als Sicht-Test: 4 Blöcke (2×2) irgendwo unten, wenn Platz ist
+      const startRow = Math.min(rows - 3, 6);
+      if(startRow >= 1){
+        add2x2Block(startRow, 2, '--orange');
+        add2x2Block(startRow, 4, '--blau');
+        add2x2Block(startRow + 2, 2, '--gruen');
+        add2x2Block(startRow + 2, 4, '--violett');
+      }
+
+      // Beispiel "halbe B / halbe Zeile 5" (nur als Marker, noch ohne Grafik):
+      // const p = posWithOffset(cell, 5, 2, 0.5, 0.5); // Zeile 5.5, Spalte B.5
+      // -> p.x, p.y kannst du später für exakte Platzierung verwenden.
+    }
+
+    let gridOn = true;
+    toggleGridBtn.addEventListener('click', () => {
+      gridOn = !gridOn;
+      document.body.classList.toggle('gridHidden', !gridOn);
+      toggleGridBtn.textContent = gridOn ? 'GRID AUS' : 'GRID AN';
+    });
+
+    window.addEventListener('load', fitGrid);
+    window.addEventListener('resize', fitGrid);
+  </script>
 </body>
 </html>
