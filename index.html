@@ -1,138 +1,107 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>KIPP Raster 8×…</title>
-  <style>
-    :root{
-      --cols: 8;
-      --cell: min(12.5vw, 84px);     /* passt sich an Handybreiten an */
-      --grid-alpha: 0.18;            /* Stärke der Rasterlinien */
-      --text: rgba(245,245,245,0.90);/* gebrochenes Weiß ~90% */
-      --bg: #000;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KIPP 2×2 Block-Muster</title>
 
-    html,body{height:100%;margin:0}
-    body{
-      background: var(--bg);
-      display:flex;
-      justify-content:center;
-      align-items:flex-start;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      overflow:hidden;
-    }
+<style>
+  :root{
+    --cell: 84px;
 
-    /* Bühne */
-    .stage{
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-      overflow:hidden;
-    }
+    --orange: rgb(249,150,30);
+    --blue:   rgb(0,107,179);
+    --green:  rgb(0,166,82);
+    --violet: rgb(164,27,133);
+  }
 
-    /* 8-Spalten-Layout in der Mitte */
-    .layout{
-      position:absolute;
-      left:50%;
-      top:0;
-      transform: translateX(-50%);
-      width: calc(var(--cols) * var(--cell));
-      height: 100vh; /* Höhe ergibt sich aus Gerät */
-    }
+  body{
+    margin:0;
+    background:#000;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    padding-top:20px;
+  }
 
-    /* Raster (ein/aus) */
-    .grid{
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      opacity: 1;
-      background-image:
-        repeating-linear-gradient(
-          to right,
-          rgba(255,255,255,var(--grid-alpha)) 0px,
-          rgba(255,255,255,var(--grid-alpha)) 1px,
-          rgba(255,255,255,0) 1px,
-          rgba(255,255,255,0) var(--cell)
-        ),
-        repeating-linear-gradient(
-          to bottom,
-          rgba(255,255,255,var(--grid-alpha)) 0px,
-          rgba(255,255,255,var(--grid-alpha)) 1px,
-          rgba(255,255,255,0) 1px,
-          rgba(255,255,255,0) var(--cell)
-        );
-    }
-    .grid.off{ opacity: 0; }
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(8, var(--cell));
+    grid-auto-rows: var(--cell);
+  }
 
-    /* Textblöcke exakt auf Grid-Zeilen */
-    .rowText{
-      position:absolute;
-      left:0;
-      width: 100%;
-      height: var(--cell);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color: var(--text);
-      font-weight: 900;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      user-select:none;
-      pointer-events:none;
-    }
-
-    /* Zeile N => top = (N-1)*cell */
-    .r2{ top: calc((2 - 1) * var(--cell)); }
-    .r4{ top: calc((4 - 1) * var(--cell)); }
-
-    /* optional: leichte Größenanpassung */
-    .rowText span{
-      font-size: clamp(18px, 4.8vmin, 34px);
-      line-height: 1;
-      text-align:center;
-      padding: 0 12px;
-    }
-
-    /* kleiner Toggle-Button (oben rechts) */
-    .toggle{
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      z-index: 10;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.22);
-      color: rgba(255,255,255,0.90);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .toggle:active{ transform: scale(0.98); }
-  </style>
+  .cell{
+    box-sizing:border-box;
+    border:1px solid rgba(255,255,255,0.15);
+    background: transparent;
+  }
+</style>
 </head>
+
 <body>
-  <button class="toggle" id="btnGrid" type="button">Grid: ON</button>
+  <div class="grid" id="grid"></div>
 
-  <div class="stage">
-    <div class="layout">
-      <div class="rowText r2"><span>KIPP COLOR</span></div>
-      <div class="rowText r4"><span>KOMBIKARTEN</span></div>
+<script>
+  const grid = document.getElementById("grid");
 
-      <div class="grid" id="grid" aria-hidden="true"></div>
-    </div>
-  </div>
+  const COLS = 8;
+  const ROWS = 20; // genug Höhe zum Test
 
-  <script>
-    const grid = document.getElementById('grid');
-    const btn  = document.getElementById('btnGrid');
+  // Grid bauen
+  for(let i=0;i<COLS*ROWS;i++){
+    const d = document.createElement("div");
+    d.className = "cell";
+    grid.appendChild(d);
+  }
 
-    btn.addEventListener('click', () => {
-      const off = grid.classList.toggle('off');
-      btn.textContent = off ? 'Grid: OFF' : 'Grid: ON';
-    });
-  </script>
+  // Hilfsfunktionen: (row, col) sind 1-basiert: row=6, col=2 (B)
+  function idx(row, col){
+    return (row-1)*COLS + (col-1);
+  }
+
+  function setCellColor(row, col, cssVar){
+    const i = idx(row,col);
+    const el = grid.children[i];
+    if(!el) return;
+    el.style.background = `var(${cssVar})`;
+  }
+
+  // 2×2 Block färben: top-left Ecke (r,c)
+  function paint2x2Block(r, c, cssVar){
+    setCellColor(r,   c,   cssVar);
+    setCellColor(r,   c+1, cssVar);
+    setCellColor(r+1, c,   cssVar);
+    setCellColor(r+1, c+1, cssVar);
+  }
+
+  // Start: 6B = row 6, col B=2
+  const startRow = 6;
+  const startCol = 2;
+
+  // Symmetrisches 4×3 Blockmuster (jede Farbe 4×)
+  // A=orange, B=blue, C=green, D=violet
+  const pattern = [
+    ["A","B","C"],
+    ["D","C","B"],
+    ["B","C","D"],
+    ["C","B","A"],
+  ];
+
+  const map = {
+    "A":"--orange",
+    "B":"--blue",
+    "C":"--green",
+    "D":"--violet",
+  };
+
+  // Pattern setzen: jeder Block ist 2×2 Zellen
+  for(let br=0;br<4;br++){
+    for(let bc=0;bc<3;bc++){
+      const topLeftRow = startRow + br*2;
+      const topLeftCol = startCol + bc*2;
+      paint2x2Block(topLeftRow, topLeftCol, map[pattern[br][bc]]);
+    }
+  }
+</script>
 </body>
 </html>
