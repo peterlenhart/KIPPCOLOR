@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>8×N Raster</title>
+  <style>
+    :root{
+      --cols: 8;
+
+      /* Grid-Linien (leicht sichtbar) */
+      --grid-alpha: 0.18;
+
+      /* Innenabstand zum Bildschirmrand (safe area) */
+      --pad: 12px;
+
+      /* Cell-Größe wird per JS gesetzt (px) */
+      --cell: 80px;
+
+      /* Grid an/aus */
+      --grid-on: 1; /* 1 = sichtbar, 0 = aus */
+    }
+
+    html, body{
+      height: 100%;
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: #fff;
+    }
+
+    /* Stage nutzt dvh für iOS/Android, fallback via min-height */
+    .stage{
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100vh;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+
+      /* Safe area (iPhone Notch) */
+      padding:
+        calc(var(--pad) + env(safe-area-inset-top))
+        calc(var(--pad) + env(safe-area-inset-right))
+        calc(var(--pad) + env(safe-area-inset-bottom))
+        calc(var(--pad) + env(safe-area-inset-left));
+      box-sizing: border-box;
+    }
+
+    /* Layout: zentriert, hat feste Breite = cols*cell */
+    .layout{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(var(--cols) * var(--cell));
+      height: var(--gridH);
+      background: transparent;
+      box-sizing: border-box;
+    }
+
+    /* Grid-Layer */
+    .grid{
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: var(--grid-on);
+      transition: opacity 0.15s ease;
+
+      background-image:
+        repeating-linear-gradient(
+          to right,
+          rgba(255,255,255,var(--grid-alpha)) 0px,
+          rgba(255,255,255,var(--grid-alpha)) 1px,
+          rgba(255,255,255,0) 1px,
+          rgba(255,255,255,0) var(--cell)
+        ),
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,var(--grid-alpha)) 0px,
+          rgba(255,255,255,var(--grid-alpha)) 1px,
+          rgba(255,255,255,0) 1px,
+          rgba(255,255,255,0) var(--cell)
+        );
+    }
+
+    /* Button oben */
+    .ui{
+      position: absolute;
+      left: 50%;
+      top: calc(10px + env(safe-area-inset-top));
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .btn{
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.10);
+      color: rgba(255,255,255,0.92);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    /* Kleine Info unten */
+    .info{
+      position: absolute;
+      left: 50%;
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      font-size: 12px;
+      opacity: 0.7;
+      z-index: 10;
+      pointer-events: none;
+      text-align: center;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="ui">
+      <button class="btn" id="toggleGrid" type="button">GRID AUS</button>
+    </div>
+
+    <div class="layout" id="layout" aria-label="8-Spalten Raster">
+      <div class="grid" id="grid" aria-hidden="true"></div>
+    </div>
+
+    <div class="info" id="info"></div>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const stage = document.getElementById("stage");
+    const info  = document.getElementById("info");
+    const btn   = document.getElementById("toggleGrid");
+
+    function setVar(name, value){
+      root.style.setProperty(name, value);
+    }
+
+    // Ziel: 8 Spalten, maximale Breite nutzen (mit etwas Rand),
+    // Cell-Größe so wählen, dass es auf möglichst allen Phones gut passt.
+    function rebuild(){
+      const cols = 8;
+
+      // Nutzbare Breite/Höhe innerhalb stage (inkl. safe-area padding)
+      const rect = stage.getBoundingClientRect();
+
+      // Reserve: oben für Button, unten für Info (damit nix drüber liegt)
+      const reserveTop = 64;
+      const reserveBottom = 42;
+
+      const usableW = rect.width;
+      const usableH = Math.max(0, rect.height - reserveTop - reserveBottom);
+
+      // Cell = Breite / 8, aber begrenzen, damit es nicht riesig oder zu klein wird
+      // (für sehr kleine Phones und sehr große Phones)
+      let cell = Math.floor(usableW / cols);
+
+      // harte Grenzen (kannst du später ändern)
+      cell = Math.max(44, Math.min(cell, 140));
+
+      // Grid-Höhe so, dass ganze Zellen reinpassen
+      const rows = Math.max(1, Math.floor(usableH / cell));
+      const gridH = rows * cell;
+
+      setVar("--cell", cell + "px");
+      setVar("--gridH", gridH + "px");
+
+      // Debug-Info
+      info.textContent = `cell=${cell}px • cols=8 • rows=${rows} • gridH=${gridH}px`;
+    }
+
+    // Grid toggle
+    function isGridOn(){
+      return (getComputedStyle(root).getPropertyValue("--grid-on").trim() || "1") !== "0";
+    }
+
+    btn.addEventListener("click", () => {
+      const on = isGridOn();
+      setVar("--grid-on", on ? "0" : "1");
+      btn.textContent = on ? "GRID AN" : "GRID AUS";
+    });
+
+    // iOS Addressbar / Rotation: rebuild öfter
+    window.addEventListener("resize", rebuild);
+    window.addEventListener("orientationchange", rebuild);
+    window.addEventListener("load", rebuild);
+
+    // extra: bei iOS kann 100dvh erst nach kurzem Moment stimmen
+    setTimeout(rebuild, 50);
+    setTimeout(rebuild, 250);
+  </script>
+</body>
+</html>
